@@ -204,6 +204,49 @@ export function spendingStats(days: readonly StatsDay[], today: string, from: st
   };
 }
 
+/** One past money note, offered while typing a new one (Evening "What for" autocomplete). */
+export interface SpentSuggestion {
+  /** As last written (case kept); grouping is case-insensitive. */
+  note: string;
+  /** The category and amount of the most recent entry with this note. */
+  category: SpendCategory;
+  amount: number;
+  /** How many entries ever used this note. */
+  count: number;
+  /** The most recent day it was used. */
+  last_date: string;
+}
+
+/** Max notes /api/spent/suggestions returns (the web filters them as the user types). */
+export const SPENT_SUGGESTIONS_MAX = 300;
+
+/**
+ * Every distinct non-empty note on any page up to today, newest first (ties: used more often). Each carries
+ * the latest entry's category and amount, so picking it fills the row the way it was last noted.
+ */
+export function spentSuggestions(days: readonly StatsDay[], today: string): SpentSuggestion[] {
+  const byNote = new Map<string, SpentSuggestion>();
+  const sorted = [...days].filter((d) => d.date <= today).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  for (const d of sorted) {
+    for (const e of d.spent ?? []) {
+      const note = (e.note ?? "").trim();
+      if (note === "") continue;
+      const key = note.toLowerCase();
+      const prev = byNote.get(key);
+      byNote.set(key, {
+        note,
+        category: spendCategoryOf(e.category),
+        amount: Number.isFinite(e.amount) ? round2(e.amount) : (prev?.amount ?? 0),
+        count: (prev?.count ?? 0) + 1,
+        last_date: d.date,
+      });
+    }
+  }
+  return [...byNote.values()]
+    .sort((a, b) => (a.last_date < b.last_date ? 1 : a.last_date > b.last_date ? -1 : b.count - a.count))
+    .slice(0, SPENT_SUGGESTIONS_MAX);
+}
+
 function daysInMonth(y: number, m: number): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-based: day 0 of the next month
 }

@@ -371,4 +371,4 @@ export interface ApiErrorBody {
 
 // ---------------------------------------------------------------- M6: the garden
 export type { SpendCategory } from "./domain";
-export type { CategoryStat, HeatmapDay, MonthAgo, PlotState, SpendingStats, Stats as StatsResponse } from "./stats";
+export type { CategoryStat, HeatmapDay, MonthAgo, PlotState, SpendingStats, SpentSuggestion, Stats as StatsResponse } from "./stats";

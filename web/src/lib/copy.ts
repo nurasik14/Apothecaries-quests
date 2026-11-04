@@ -49,6 +49,7 @@ export const COPY = {
   spentAmountLabel: 'Amount',
   spentNoteLabel: 'What for',
   spentNotePlaceholder: 'lunch, bus, snacks…',
+  spentSuggestLabel: 'Earlier notes',
   spentAdd: 'Add',
   spentRemove: (what: string) => `Remove ${what}`,
   spentNone: 'Nothing noted yet.',
@@ -58,11 +59,14 @@ export const COPY = {
   spentCategoryLabel: 'Type of spending',
   spentCategoryOf: (what: string) => `Type of spending for ${what}`,
   spendCategory: {
-    entertainment: 'Entertainment',
+    entertainment: 'Relax & Entertainment',
     grocery: 'Grocery',
     cafe: 'Café & restaurant',
     electronics: 'Electronics',
+    shopping_need: 'Shopping (necessary)',
+    shopping_want: 'Shopping (not needed)',
     subscription: 'Subscription',
+    transportation: 'Transportation',
     other: 'Other'
   } as Record<string, string>,
   sealButton: "Seal today's ledger",

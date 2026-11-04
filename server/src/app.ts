@@ -400,6 +400,9 @@ export function createApp(deps: AppDeps) {
     return c.json(await shop.stats(from, to));
   });
 
+  // Past money notes, for the Evening "What for" autocomplete (newest first; the web filters by keyword).
+  app.get("/api/spent/suggestions", async (c) => c.json({ suggestions: await shop.spentSuggestions() }));
+
   app.get("/api/purchases", async (c) => {
     const raw = c.req.query("limit");
     const limit = raw === undefined ? 50 : Number(raw);

@@ -6,10 +6,10 @@
  * - After a 412, the newer on-disk version becomes the new baseline: untouched fields adopt it,
  *   fields the user edited keep the user's text (and the panel shows the on-disk version next to them).
  */
-import type { EveningBody, SpendCategory, SpentJson } from '../../../server/src/api-types';
+import type { EveningBody, SpendCategory, SpentJson, SpentSuggestion } from '../../../server/src/api-types';
 
 /** Kinds of spending, in picker order. Mirrors server/src/domain.ts SPEND_CATEGORIES (type-only import rule). */
-export const SPEND_CATEGORIES = ['entertainment', 'grocery', 'cafe', 'electronics', 'subscription', 'other'] as const satisfies readonly SpendCategory[];
+export const SPEND_CATEGORIES = ['entertainment', 'grocery', 'cafe', 'electronics', 'shopping_need', 'shopping_want', 'subscription', 'transportation', 'other'] as const satisfies readonly SpendCategory[];
 
 /** A stored value as a known category: missing or unknown = 'other' (same rule as the server's spendCategoryOf). */
 export function spendCategoryOf(v: unknown): SpendCategory {
@@ -59,6 +59,35 @@ export function parseAmount(text: string): number | null {
   if (!/^\d+(\.\d*)?$|^\.\d+$/.test(t)) return null;
   const n = Math.round(Number(t) * 100) / 100;
   return Number.isFinite(n) && n > 0 && n <= 10_000_000 ? n : null;
+}
+
+/** How many past notes the "What for" box offers at once. */
+export const SPENT_SUGGEST_LIMIT = 6;
+
+/**
+ * Past money notes matching what's typed in "What for" (like a calendar suggesting earlier events):
+ * case-insensitive; notes starting with the keyword first, then a word starting with it, then any
+ * substring. Within a rank the server's order holds (most recently used first). Empty input → none.
+ */
+export function matchSpentSuggestions(
+  list: readonly SpentSuggestion[],
+  typed: string,
+  limit = SPENT_SUGGEST_LIMIT
+): SpentSuggestion[] {
+  const q = typed.trim().toLowerCase();
+  if (q === '') return [];
+  const ranked: { s: SpentSuggestion; rank: number; i: number }[] = [];
+  list.forEach((s, i) => {
+    const n = s.note.toLowerCase();
+    const at = n.indexOf(q);
+    if (at < 0) return;
+    const rank = at === 0 ? 0 : n.split(/[^\p{L}\p{N}]+/u).some((w) => w.startsWith(q)) ? 1 : 2;
+    ranked.push({ s, rank, i });
+  });
+  return ranked
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .slice(0, limit)
+    .map((r) => r.s);
 }
 
 function same(a: unknown, b: unknown): boolean {

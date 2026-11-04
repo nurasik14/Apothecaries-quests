@@ -14,6 +14,7 @@ import type {
   PurchaseJson,
   PurchaseResponse,
   ShopResponse,
+  SpentSuggestion,
   StatsResponse,
   WishlistResponse,
   EveningResponse,
@@ -56,6 +57,7 @@ export const api = {
     request<EveningResponse>('PUT', `/api/days/${encodeURIComponent(date)}/evening`, body, {
       'If-Match': etag === '*' ? '*' : `"${etag}"`
     }),
+  spentSuggestions: () => request<{ suggestions: SpentSuggestion[] }>('GET', '/api/spent/suggestions'),
   health: () =>
     request<{ date: string; tz: string; rollover_hour: number }>('GET', '/api/health'),
 

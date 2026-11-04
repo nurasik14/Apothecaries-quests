@@ -188,7 +188,7 @@ export const LIMITS = {
  * edits) or with an unknown value counts as "other". Mirrored by SPEND_CATEGORIES in
  * web/src/lib/eveningForm.ts (the web imports types only); spending.test.ts checks the two match.
  */
-export const SPEND_CATEGORIES = ["entertainment", "grocery", "cafe", "electronics", "subscription", "other"] as const;
+export const SPEND_CATEGORIES = ["entertainment", "grocery", "cafe", "electronics", "shopping_need", "shopping_want", "subscription", "transportation", "other"] as const;
 export type SpendCategory = (typeof SPEND_CATEGORIES)[number];
 
 /** Read-side: any stored value → a known category ("other" when missing or unknown). */

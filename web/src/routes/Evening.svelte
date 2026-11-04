@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import type { DayJson, FileProblem, Job, JobKind, ProposalJson, ReflectResult } from '../../../server/src/api-types';
+  import type { DayJson, FileProblem, Job, JobKind, ProposalJson, ReflectResult, SpentSuggestion } from '../../../server/src/api-types';
   import BalanceBadge from '../lib/components/BalanceBadge.svelte';
   import OfflineCard from '../lib/components/OfflineCard.svelte';
   import ProposalList from '../lib/components/ProposalList.svelte';
@@ -17,6 +17,7 @@
   import {
     changedKeys,
     emptyForm,
+    matchSpentSuggestions,
     parseAmount,
     rebaseForm,
     saveBody,
@@ -76,6 +77,29 @@
   let newCategory = $state<Form['spent'][number]['category']>('other');
   let amountError = $state(false);
   const pendingSpent = $derived(newAmount.trim() !== '');
+  /** Past notes for the "What for" autocomplete (GET /api/spent/suggestions); empty when unreachable. */
+  let suggestions = $state<SpentSuggestion[]>([]);
+  let suggestOpen = $state(false);
+  /** Highlighted suggestion (arrow keys); -1 = none, so a plain Enter still adds the row. */
+  let suggestActive = $state(-1);
+  const suggestMatches = $derived(suggestOpen ? matchSpentSuggestions(suggestions, newNote) : []);
+  let suggestEl = $state<HTMLElement | null>(null);
+  /** Open upward when the space under the box (above the tab bar / phone keyboard) is too small. */
+  let suggestUp = $state(false);
+  let suggestMax = $state(256);
+  $effect(() => {
+    const rows = suggestMatches.length;
+    if (!suggestEl || rows === 0) return;
+    const box = document.getElementById('spent-note')?.getBoundingClientRect();
+    if (!box) return;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const navTop = document.querySelector('nav')?.getBoundingClientRect().top ?? vh;
+    const below = Math.min(vh, navTop) - box.bottom - 8;
+    const above = box.top - 8;
+    const want = Math.min(256, rows * 44 + 8);
+    suggestUp = below < want && above > below;
+    suggestMax = Math.max(96, Math.min(256, suggestUp ? above : below));
+  });
 
   const weekday = $derived(date ? weekdayOf(date) : '');
   const isPast = $derived(date !== null && today !== null && date < today);
@@ -296,7 +320,55 @@
 
   onMount(() => {
     void load();
+    void loadSuggestions();
   });
+
+  async function loadSuggestions() {
+    try {
+      suggestions = (await api.spentSuggestions()).data.suggestions ?? [];
+    } catch {
+      // Optional helper: an older server or offline just means no suggestions.
+    }
+  }
+
+  function closeSuggest() {
+    suggestOpen = false;
+    suggestActive = -1;
+  }
+
+  /** Fill the row the way this note was last written: its text and type, and the amount if none is typed yet. */
+  async function pickSuggestion(s: SpentSuggestion) {
+    newNote = s.note;
+    newCategory = s.category;
+    closeSuggest();
+    if (newAmount.trim() === '') {
+      newAmount = String(s.amount);
+      amountError = false;
+      await tick();
+      const el = document.getElementById('spent-amount') as HTMLInputElement | null;
+      el?.focus();
+      el?.select();
+    }
+  }
+
+  function noteKeydown(e: KeyboardEvent) {
+    const n = suggestMatches.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!suggestOpen) suggestOpen = true;
+      const m = matchSpentSuggestions(suggestions, newNote).length;
+      if (m === 0) return;
+      e.preventDefault();
+      suggestActive = e.key === 'ArrowDown' ? (suggestActive + 1) % m : suggestActive <= 0 ? m - 1 : suggestActive - 1;
+    } else if (e.key === 'Escape' && n > 0) {
+      e.preventDefault();
+      closeSuggest();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const s = suggestActive >= 0 ? suggestMatches[suggestActive] : undefined;
+      if (s) void pickSuggestion(s);
+      else if (addSpent()) document.getElementById('spent-amount')?.focus();
+    }
+  }
 
   function toggleMood(tag: string) {
     form.mood = form.mood.includes(tag) ? form.mood.filter((m) => m !== tag) : [...form.mood, tag];
@@ -320,6 +392,7 @@
     newNote = '';
     newCategory = 'other';
     amountError = false;
+    closeSuggest();
     return true;
   }
 
@@ -351,6 +424,7 @@
       staleFields = [];
       staleUpdated = [];
       clearDraft(date);
+      void loadSuggestions();
       savedOnce = true;
       editing = false;
       stamped = false;
@@ -589,7 +663,7 @@
     </fieldset>
 
     <!-- Money (outside the sealed fieldset): a new amount can be noted on a sealed page straight away. -->
-    <fieldset class="spent">
+    <fieldset class="spent" class:suggesting={suggestMatches.length > 0}>
       <legend class="qj-label">{isPast ? COPY.spentLegendPast : COPY.spentLegend}</legend>
       <span class="qj-hint" id="spent-hint">{COPY.spentHint}</span>
       {#if form.spent.length}
@@ -641,20 +715,52 @@
           }}
         />
         <label class="qj-sr-only" for="spent-note">{COPY.spentNoteLabel}</label>
-        <input
-          id="spent-note"
-          class="qj-input spent-note-in"
-          maxlength="80"
-          autocomplete="off"
-          placeholder={COPY.spentNotePlaceholder}
-          bind:value={newNote}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (addSpent()) document.getElementById('spent-amount')?.focus();
-            }
-          }}
-        />
+        <div class="spent-note-wrap">
+          <input
+            id="spent-note"
+            class="qj-input spent-note-in"
+            maxlength="80"
+            autocomplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestMatches.length > 0}
+            aria-controls="spent-suggest"
+            aria-activedescendant={suggestActive >= 0 && suggestMatches[suggestActive] ? `spent-suggest-${suggestActive}` : undefined}
+            placeholder={COPY.spentNotePlaceholder}
+            bind:value={newNote}
+            oninput={() => {
+              suggestOpen = true;
+              suggestActive = -1;
+            }}
+            onblur={closeSuggest}
+            onkeydown={noteKeydown}
+          />
+          {#if suggestMatches.length}
+            <ul
+              class="spent-suggest"
+              class:up={suggestUp}
+              style:max-height={`${suggestMax}px`}
+              id="spent-suggest"
+              role="listbox"
+              bind:this={suggestEl} aria-label={COPY.spentSuggestLabel}>
+              {#each suggestMatches as s, i (s.note)}
+                <li
+                  id={`spent-suggest-${i}`}
+                  role="option"
+                  aria-selected={i === suggestActive}
+                  class:active={i === suggestActive}
+                  onpointerdown={(e) => {
+                    e.preventDefault();
+                    void pickSuggestion(s);
+                  }}
+                >
+                  <span class="spent-suggest-note">{s.note}</span>
+                  <span class="spent-suggest-meta">{COPY.spendCategory[s.category] ?? s.category} · {money(s.amount)}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
         <label class="qj-sr-only" for="spent-category">{COPY.spentCategoryLabel}</label>
         <select id="spent-category" class="qj-input spent-cat-in" bind:value={newCategory}>
           {#each SPEND_CATEGORIES as c (c)}<option value={c}>{COPY.spendCategory[c]}</option>{/each}
@@ -771,6 +877,12 @@
     display: grid;
     gap: var(--sp-2);
   }
+  /* The open suggestion list must float above the sticky Seal bar (each page child is its own z-index: 1
+     stacking context), but stay under the tab bar. */
+  .spent.suggesting {
+    position: relative;
+    z-index: calc(var(--z-sticky) + 1);
+  }
   .spent-list {
     list-style: none;
     margin: 0;
@@ -833,9 +945,58 @@
     grid-area: amt;
     min-width: 0;
   }
-  .spent-note-in {
+  .spent-note-wrap {
     grid-area: note;
     min-width: 0;
+    position: relative;
+  }
+  .spent-note-in {
+    width: 100%;
+    min-width: 0;
+  }
+  /* Past notes matching the keyword (calendar-style autocomplete); tap or arrow + Enter picks one. */
+  .spent-suggest {
+    position: absolute;
+    z-index: var(--z-sticky);
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: var(--sp-1) 0;
+    list-style: none;
+    background: var(--surface);
+    border: var(--bw-hair) solid var(--line-strong);
+    border-radius: var(--r-sm);
+    box-shadow: var(--shadow-3);
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+  .spent-suggest.up {
+    top: auto;
+    bottom: calc(100% + 2px);
+  }
+  .spent-suggest li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--sp-2);
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    cursor: pointer;
+  }
+  .spent-suggest li:hover,
+  .spent-suggest li.active {
+    background: var(--bg);
+  }
+  .spent-suggest-note {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .spent-suggest-meta {
+    flex: none;
+    color: var(--ink-muted);
+    font-size: var(--fs-sm);
+    font-variant-numeric: tabular-nums;
   }
   .spent-cat-in {
     grid-area: cat;

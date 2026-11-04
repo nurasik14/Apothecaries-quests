@@ -2,8 +2,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { spendingStats, type StatsDay } from "../src/stats";
-import { parseAmount, saveBody, emptyForm, spentRows, spentTotal, SPEND_CATEGORIES as WEB_SPEND_CATEGORIES, spendCategoryOf as webSpendCategoryOf } from "../../web/src/lib/eveningForm";
+import { spendingStats, spentSuggestions, type StatsDay } from "../src/stats";
+import { matchSpentSuggestions, parseAmount, saveBody, emptyForm, spentRows, spentTotal, SPEND_CATEGORIES as WEB_SPEND_CATEGORIES, spendCategoryOf as webSpendCategoryOf } from "../../web/src/lib/eveningForm";
 import { SPEND_CATEGORIES, spendCategoryOf } from "../src/domain";
 import { COPY } from "../../web/src/lib/copy";
 import { cleanupTempDirs, makeTestApp, req, type TestApp } from "./helpers";
@@ -162,5 +162,39 @@ describe("evening form helpers", () => {
       { amount: 1, note: "", category: "other" },
     ]);
     expect(spentTotal([{ amount: 0.1 }, { amount: 0.2 }])).toBe(0.3);
+  });
+});
+
+describe("spent note suggestions (Evening \"What for\" autocomplete)", () => {
+  test("distinct notes, case-insensitive, newest first, carrying the latest category and amount; future and empty notes left out", () => {
+    const days = [
+      sd("2026-10-20", [{ amount: 10, note: "MTR", category: "other" }, { amount: 4 }]),
+      sd("2026-10-22", [{ amount: 28.4, note: "mtr ", category: "transportation" }, { amount: 50, note: "Lunch", category: "cafe" }]),
+      sd("2026-10-23", [{ amount: 285, note: "Pinduoduo", category: "entertainment" }]),
+      sd("2026-10-30", [{ amount: 1, note: "future" }]),
+    ];
+    expect(spentSuggestions(days, TODAY)).toEqual([
+      { note: "Pinduoduo", category: "entertainment", amount: 285, count: 1, last_date: "2026-10-23" },
+      { note: "mtr", category: "transportation", amount: 28.4, count: 2, last_date: "2026-10-22" },
+      { note: "Lunch", category: "cafe", amount: 50, count: 1, last_date: "2026-10-22" },
+    ]);
+  });
+
+  test("GET /api/spent/suggestions reads the day pages", async () => {
+    const t = await app();
+    await call(t, "PUT", `/api/days/2026-10-24/evening`, { spent: [{ amount: 12, note: "Bus", category: "transportation" }] }, { "if-match": "*" });
+    const r = await call(t, "GET", "/api/spent/suggestions");
+    expect(r.status).toBe(200);
+    expect(r.data.suggestions).toEqual([{ note: "Bus", category: "transportation", amount: 12, count: 1, last_date: "2026-10-24" }]);
+  });
+
+  test("matchSpentSuggestions: prefix, then word start, then substring; empty input offers nothing", () => {
+    const s = (note: string) => ({ note, category: "other" as const, amount: 1, count: 1, last_date: TODAY });
+    const list = [s("Bistro AC3 lunch"), s("Transportation"), s("Lunch box"), s("MTR"), s("brunch")];
+    expect(matchSpentSuggestions(list, "lun").map((x) => x.note)).toEqual(["Lunch box", "Bistro AC3 lunch"]);
+    expect(matchSpentSuggestions(list, "unch").map((x) => x.note)).toEqual(["Bistro AC3 lunch", "Lunch box", "brunch"]);
+    expect(matchSpentSuggestions(list, " TR").map((x) => x.note)).toEqual(["Transportation", "Bistro AC3 lunch", "MTR"]);
+    expect(matchSpentSuggestions(list, "  ")).toEqual([]);
+    expect(matchSpentSuggestions(list, "u", 2)).toHaveLength(2);
   });
 });

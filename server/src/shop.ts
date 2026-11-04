@@ -24,7 +24,7 @@ import { purchasesFileSchema, type Purchase, type PurchasesFile, type Reward } f
 import type { Store } from "./store";
 import { ApiError, isQuarantine, problemOf } from "./today";
 import type { FileProblem, PurchaseJson, ShopItemJson, WishlistJson } from "./api-types";
-import { computeStats, type Stats, type StatsDay } from "./stats";
+import { computeStats, spentSuggestions as suggestSpent, type SpentSuggestion, type Stats, type StatsDay } from "./stats";
 
 export const PURCHASES_FILE = "purchases.yaml";
 
@@ -223,10 +223,17 @@ export function createShopService(deps: ShopDeps) {
     return computeStats({ days: earn.days, broken: earn.broken, today: today(), from, to, economy: econ });
   }
 
+  /** Past money notes for the Evening "What for" autocomplete (read-only, no economy work). */
+  async function spentSuggestions(): Promise<SpentSuggestion[]> {
+    const earn = await gatherEarnings();
+    return suggestSpent(earn.days, today());
+  }
+
   return {
     economy,
     gatherEarnings,
     stats,
+    spentSuggestions,
     today,
 
     shop,
