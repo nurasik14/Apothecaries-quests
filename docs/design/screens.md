@@ -194,7 +194,7 @@
 3. **Question card**: one `ScrollCard unroll` per question with the `h2` question text. The input depends on the type:
    - Likert (Big-Five-ish): 5 `.qj-chip` radios in a row ("Not me" … "Very me").
    - Short text: `.qj-input`. Long text: `.qj-textarea`.
-   - Multi-select (hobbies): wrapping chips.
+   - Multi-select (hobbies): wrapping chips + a free-text `.qj-input` below ("Anything else? Write your own", stored as `<id>:own`, appended after the chips in the answer).
 4. **Footer** (sticky): **Back** (quiet) · **Skip** (quiet) · **Next** (primary). On the last question: **"Ask Maomao to write my notes"** (seal button).
 5. **Draft review**: `HerbLoader message="Maomao is writing up her notes on you…"` → then a full `.qj-textarea` with the Markdown draft, a muted hint "Edit freely. This file is yours.", and the primary "Save my notes" → toast + navigate to Today (check-in).
 

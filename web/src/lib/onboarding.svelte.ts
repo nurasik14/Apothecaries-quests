@@ -62,14 +62,23 @@ export function clearOnboarding(): void {
   }
 }
 
-/** Question/answer pairs for POST /api/onboarding/draft. Skipped questions go as "" (the server drops them). */
+/** Answer key for the free-text box under a multi-select question's chips ("Anything else? Write your own"). */
+export function ownKey(id: string): string {
+  return `${id}:own`;
+}
+
+/**
+ * Question/answer pairs for POST /api/onboarding/draft. Skipped questions go as "" (the server drops them).
+ * A multi-select's own text is appended after its chips: "manga, games, chess, photography".
+ */
 export function answerPairs(
   questions: readonly { id: string; text: string }[],
   answers: Record<string, Answer>
 ): { question: string; answer: string }[] {
   return questions.map((q) => {
     const a = answers[q.id];
-    const text = Array.isArray(a) ? a.join(', ') : (a ?? '');
-    return { question: q.text, answer: text.trim().slice(0, 1000) };
+    const own = answers[ownKey(q.id)];
+    const parts = [Array.isArray(a) ? a.join(', ') : (a ?? ''), typeof own === 'string' ? own : ''].map((s) => s.trim()).filter(Boolean);
+    return { question: q.text, answer: parts.join(', ').slice(0, 1000) };
   });
 }

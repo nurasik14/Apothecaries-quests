@@ -131,6 +131,8 @@ export const COPY = {
   onboardingBack: 'Back',
   onboardingSkip: 'Skip',
   onboardingNext: 'Next',
+  onboardingOwn: 'Anything else? Write your own',
+  onboardingOwnPlaceholder: 'e.g. chess, photography, karaoke',
   onboardingAsk: 'Ask Maomao to write my notes',
   onboardingStartOver: 'Start over',
   onboardingKeep: 'Keep this tab open, or come back later. Your answers are kept.',
@@ -368,7 +370,7 @@ export const ONBOARDING_QUESTIONS: readonly OnboardingQuestion[] = [
     id: 'enjoy',
     text: 'Things you enjoy',
     kind: 'multi',
-    options: ['manga', 'cafés', 'ML / coding', 'drawing', 'walking', 'games', 'music', 'cooking', 'sport', 'reading', 'other']
+    options: ['manga', 'cafés', 'ML / coding', 'drawing', 'walking', 'games', 'music', 'cooking', 'sport', 'reading']
   },
   { id: 'current', text: "A manga, series or project you're into right now", kind: 'short' },
   { id: 'places', text: 'Places you can easily reach: cafés, library, park, gym, kitchen?', kind: 'long' },

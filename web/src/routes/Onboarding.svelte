@@ -17,6 +17,7 @@
     clearOnboarding,
     freshState,
     loadOnboarding,
+    ownKey,
     saveOnboarding,
     type OnboardingState
   } from '../lib/onboarding.svelte';
@@ -106,6 +107,7 @@
 
   function skip() {
     delete st.answers[q.id];
+    delete st.answers[ownKey(q.id)];
     next();
   }
 
@@ -169,6 +171,7 @@
   }
 
   const value = $derived(st.answers[q.id]);
+  const own = $derived(st.answers[ownKey(q.id)]);
 </script>
 
 <svelte:head><title>Welcome · Quest Journal</title></svelte:head>
@@ -217,6 +220,21 @@
             {#each q.options ?? [] as opt (opt)}
               <button type="button" class="qj-chip" aria-pressed={Array.isArray(value) && value.includes(opt)} onclick={() => toggleMulti(opt)}>{opt}</button>
             {/each}
+          </div>
+          <div class="qj-field own">
+            <label class="qj-label" for="q-own">{COPY.onboardingOwn}</label>
+            <input
+              id="q-own"
+              class="qj-input"
+              maxlength="500"
+              placeholder={COPY.onboardingOwnPlaceholder}
+              value={typeof own === 'string' ? own : ''}
+              oninput={(e) => {
+                const v = e.currentTarget.value;
+                if (v.trim()) st.answers[ownKey(q.id)] = v;
+                else delete st.answers[ownKey(q.id)];
+              }}
+            />
           </div>
         {/if}
       {/key}
@@ -320,6 +338,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--sp-2);
+  }
+  .own {
+    margin-top: var(--sp-3);
   }
   .footer {
     position: sticky;

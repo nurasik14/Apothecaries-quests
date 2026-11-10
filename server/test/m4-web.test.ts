@@ -77,6 +77,11 @@ describe("onboarding client state (designer-AC4)", () => {
     expect(pairs[1]!.answer).toBe("");
     expect(pairs[14]!.answer.length).toBe(1000);
   });
+  test("a multi-select's own text is appended after the chips", () => {
+    const pairs = answerPairs(ONBOARDING_QUESTIONS, { enjoy: ["manga"], "enjoy:own": " chess, photography " });
+    expect(pairs[3]!.answer).toBe("manga, chess, photography");
+    expect(answerPairs(ONBOARDING_QUESTIONS, { "enjoy:own": "chess" })[3]!.answer).toBe("chess");
+  });
   test("'Write my notes myself' template counts as an empty profile, like the server template", () => {
     expect(isEmptyKb(PROFILE_TEMPLATE)).toBe(true);
     expect(isEmptyKb(SERVER_TEMPLATE)).toBe(true);
