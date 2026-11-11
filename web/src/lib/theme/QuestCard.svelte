@@ -44,6 +44,10 @@
     showCoins?: boolean;
     /** Extra micro-copy rendered inside the card, under the why/checkpoints. */
     note?: Snippet;
+    /** Optional extra content per checkpoint row (the boss card's photo button), after the label; wraps when wide. */
+    checkpointExtra?: Snippet<[number]>;
+    /** Content between the why/checkpoints and the note (the boss card's photo strip). */
+    extra?: Snippet;
     class?: string;
   }
 
@@ -62,6 +66,8 @@
     onreroll,
     oncheckpoint,
     note,
+    checkpointExtra,
+    extra,
     showCoins = true,
     class: className = ''
   }: Props = $props();
@@ -129,7 +135,7 @@
   {#if quest.checkpoints?.length}
     <ol class="checkpoints">
       {#each quest.checkpoints as cp, i (i)}
-        <li>
+        <li class:with-extra={checkpointExtra !== undefined}>
           <label>
             <input
               type="checkbox"
@@ -147,10 +153,13 @@
             />
             <span>{cp.label}</span>
           </label>
+          {#if checkpointExtra}{@render checkpointExtra(i)}{/if}
         </li>
       {/each}
     </ol>
   {/if}
+
+  {#if extra}<div class="extra">{@render extra()}</div>{/if}
 
   {#if note}<div class="note">{@render note()}</div>{/if}
 
@@ -413,6 +422,20 @@
   }
   .checkpoints li + li {
     border-top: 1px solid var(--rule-faint);
+  }
+  /* A row with extra content (photo button): label grows, the extra sits at the end and wraps under when wide. */
+  .checkpoints li.with-extra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--sp-2);
+  }
+  .checkpoints li.with-extra label {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+  .extra {
+    min-width: 0;
   }
   .checkpoints label {
     display: flex;

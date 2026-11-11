@@ -31,12 +31,32 @@ export interface EveningForm {
   notes: string;
   gratitude: string;
   spent: SpentEntry[];
+  /** Already-uploaded photo paths under Highlight / Notes (part of the form: they make it dirty, the seal saves them). */
+  highlight_photos?: string[];
+  notes_photos?: string[];
 }
 
-export const FORM_KEYS = ['satisfaction', 'mood', 'highlight', 'notes', 'gratitude', 'spent'] as const;
+export const FORM_KEYS = ['satisfaction', 'mood', 'highlight', 'notes', 'gratitude', 'spent', 'highlight_photos', 'notes_photos'] as const;
 export type FormKey = (typeof FORM_KEYS)[number];
+export const PHOTO_KEYS = ['highlight_photos', 'notes_photos'] as const;
+export type PhotoKey = (typeof PHOTO_KEYS)[number];
+const isPhotoKey = (k: FormKey): k is PhotoKey => (PHOTO_KEYS as readonly string[]).includes(k);
 
-export const emptyForm = (): EveningForm => ({ satisfaction: null, mood: [], highlight: '', notes: '', gratitude: '', spent: [] });
+export const emptyForm = (): EveningForm => ({
+  satisfaction: null,
+  mood: [],
+  highlight: '',
+  notes: '',
+  gratitude: '',
+  spent: [],
+  highlight_photos: [],
+  notes_photos: []
+});
+
+/** A field's value for comparison: a missing photo list is the same as an empty one. */
+function valueOf(f: EveningForm, k: FormKey): unknown {
+  return isPhotoKey(k) ? (f[k] ?? []) : f[k];
+}
 
 /** The page's `spent:` list as form rows (a hand-written `- 38` arrives as `{ amount: 38 }`). */
 export function spentRows(list: readonly SpentJson[] | undefined | null): SpentEntry[] {
@@ -96,7 +116,7 @@ function same(a: unknown, b: unknown): boolean {
 
 /** Fields whose value differs from the loaded baseline. */
 export function changedKeys(form: EveningForm, loaded: EveningForm): FormKey[] {
-  return FORM_KEYS.filter((k) => !same(form[k], loaded[k]));
+  return FORM_KEYS.filter((k) => !same(valueOf(form, k), valueOf(loaded, k)));
 }
 
 /** The PUT body: changed fields only. A rating-only re-seal with nothing changed sends just the rating. */
@@ -107,6 +127,7 @@ export function saveBody(form: EveningForm, loaded: EveningForm): EveningBody {
     else if (k === 'satisfaction') body.satisfaction = form.satisfaction;
     else if (k === 'spent')
       body.spent = form.spent.map((e) => (e.note.trim() ? { amount: e.amount, note: e.note.trim(), category: e.category } : { amount: e.amount, category: e.category }));
+    else if (isPhotoKey(k)) body[k] = [...(form[k] ?? [])];
     else body[k] = form[k];
   }
   if (Object.keys(body).length === 0) body.satisfaction = form.satisfaction;
@@ -128,10 +149,11 @@ export function rebaseForm(
 ): { form: EveningForm; conflicts: FormKey[]; updated: FormKey[] } {
   const edited = new Set(changedKeys(form, loaded));
   const next: EveningForm = { ...theirs, mood: [...theirs.mood], spent: theirs.spent.map((e) => ({ ...e })) };
+  for (const k of PHOTO_KEYS) if (theirs[k]) next[k] = [...theirs[k]];
   const conflicts: FormKey[] = [];
   const updated: FormKey[] = [];
   for (const k of FORM_KEYS) {
-    const changedOnDisk = !same(theirs[k], loaded[k]);
+    const changedOnDisk = !same(valueOf(theirs, k), valueOf(loaded, k));
     if (!edited.has(k)) {
       if (changedOnDisk) updated.push(k);
       continue;
@@ -139,8 +161,9 @@ export function rebaseForm(
     if (k === 'mood') next.mood = [...form.mood];
     else if (k === 'satisfaction') next.satisfaction = form.satisfaction;
     else if (k === 'spent') next.spent = form.spent.map((e) => ({ ...e }));
+    else if (isPhotoKey(k)) next[k] = [...(form[k] ?? [])];
     else next[k] = form[k];
-    if (changedOnDisk && !same(form[k], theirs[k])) conflicts.push(k);
+    if (changedOnDisk && !same(valueOf(form, k), valueOf(theirs, k))) conflicts.push(k);
   }
   return { form: next, conflicts, updated };
 }

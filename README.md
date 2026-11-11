@@ -290,6 +290,7 @@ The app is meant to run on your own machine and be reached from your phone over 
 | What | Where | Who sees it |
 |---|---|---|
 | Days, weeks, profile, insights, quest pool, rewards, purchases | `DATA_DIR` (`days/`, `weeks/`, `kb/`, `*.yaml`) | Only you. Committed locally, never pushed. |
+| Photos (boss quest, checkpoints, Highlight, Notes) | `DATA_DIR/media/` (gitignored) | Only you. Never committed, never sent to the AI; resized on the phone with location data stripped. |
 | Profile, approved insights, last 14 days of notes and ratings | Sent in the quest prompt | Your AI provider (nobody, with a local model) |
 | Gratitude entries and days marked private | `DATA_DIR` only | Never sent anywhere |
 

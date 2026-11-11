@@ -106,6 +106,8 @@ export interface QuestJson extends QuestBase {
 export interface CheckpointJson {
   text: string;
   done: boolean;
+  /** Optional photos for this checkpoint: `media/<YYYY-MM>/<id>.<jpg|png|webp>` paths (absent when none). */
+  photos?: string[];
 }
 
 export interface BossJson extends Omit<QuestBase, "difficulty" | "slot"> {
@@ -116,6 +118,8 @@ export interface BossJson extends Omit<QuestBase, "difficulty" | "slot"> {
   checkpoints?: CheckpointJson[];
   artifact?: string;
   cost?: "free" | "low" | "medium";
+  /** Proof / progress photos for the whole weekly quest (media paths; absent when none). */
+  photos?: string[];
 }
 
 export interface GenerationJson {
@@ -141,6 +145,9 @@ export interface DayJson {
   gratitude: string;
   /** Money noted for the day (front matter `spent:`), in the user's currency. */
   spent: SpentJson[];
+  /** Photos under the Highlight / Notes sections (media paths; absent when none). */
+  highlight_photos?: string[];
+  notes_photos?: string[];
   extra_sections: string[];
   etag: string;
   [extra: string]: unknown;
@@ -240,7 +247,10 @@ export interface QuestPatchBody {
   status?: Status;
   feedback?: Feedback | null;
   reason?: ReasonChip | null;
-  checkpoints?: { index: number; done: boolean }[];
+  /** Weekly quest only: the whole photo list (replaces it; [] removes all). */
+  photos?: string[];
+  /** Each entry sets `done`, `photos` (the checkpoint's whole list), or both. */
+  checkpoints?: { index: number; done?: boolean; photos?: string[] }[];
 }
 
 export interface QuestPatchResponse {
@@ -280,6 +290,14 @@ export interface EveningBody {
   notes?: string;
   gratitude?: string;
   spent?: SpentJson[];
+  /** The section's whole photo list (replaces it; [] removes the key from the page). */
+  highlight_photos?: string[];
+  notes_photos?: string[];
+}
+
+/** `POST /api/media` (multipart, field `file`) → 201. Attach `path` to a page with a PATCH/PUT afterwards. */
+export interface MediaUploadResponse {
+  path: string;
 }
 
 export type ReflectSkip = "ai_off" | "not_recent" | "private" | "care" | "exists" | "unchanged" | "few_days" | "empty";

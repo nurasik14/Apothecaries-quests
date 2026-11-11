@@ -9,7 +9,9 @@
   import type { DayJson, FileProblem, Job, JobKind, ProposalJson, ReflectResult, SpentSuggestion } from '../../../server/src/api-types';
   import BalanceBadge from '../lib/components/BalanceBadge.svelte';
   import OfflineCard from '../lib/components/OfflineCard.svelte';
+  import PhotoStrip from '../lib/components/PhotoStrip.svelte';
   import ProposalList from '../lib/components/ProposalList.svelte';
+  import { photosOf } from '../lib/photos';
   import { jobs as jobState, jobStartedAt, onJobSettled, trackJob } from '../lib/jobs.svelte';
   import { api, ApiError, NetworkError } from '../lib/api';
   import Quarantine from '../lib/components/Quarantine.svelte';
@@ -110,6 +112,8 @@
       (loaded.satisfaction !== null ||
         loaded.mood.length > 0 ||
         loaded.spent.length > 0 ||
+        (loaded.highlight_photos?.length ?? 0) > 0 ||
+        (loaded.notes_photos?.length ?? 0) > 0 ||
         [loaded.highlight, loaded.notes, loaded.gratitude].some((t) => t.trim() !== ''))
   );
   /** Tapped "Edit" on a sealed page: the fields open again until the next seal. */
@@ -169,7 +173,9 @@
       highlight: d.highlight,
       notes: d.notes,
       gratitude: d.gratitude,
-      spent: spentRows(d.spent)
+      spent: spentRows(d.spent),
+      highlight_photos: photosOf(d.highlight_photos),
+      notes_photos: photosOf(d.notes_photos)
     };
   }
 
@@ -579,7 +585,7 @@
                 <dd>
                   {#if k === 'mood'}{moodText(theirs.mood)}{:else if k === 'satisfaction'}{theirs.satisfaction ?? '—'}{:else if k === 'spent'}{spentText(
                       theirs.spent
-                    )}{:else}<pre
+                    )}{:else if k === 'highlight_photos' || k === 'notes_photos'}{COPY.photoCount(theirs[k]?.length ?? 0)}{:else}<pre
                       class="theirs">{theirs[k] || '—'}</pre>{/if}
                 </dd>
               {/each}
@@ -644,11 +650,30 @@
       <label class="qj-label" for="highlight">{COPY.highlightLabel}</label>
       <span class="qj-hint" id="highlight-hint">{COPY.highlightHint}</span>
       <input id="highlight" class="qj-input" maxlength="300" aria-describedby="highlight-hint" bind:value={form.highlight} />
+      <!-- Photos are part of the form: they make it dirty, the Seal saves them, a sealed page shows them read-only. -->
+      <PhotoStrip
+        photos={form.highlight_photos}
+        label={COPY.photosHighlight}
+        disabled={locked}
+        busy={saving}
+        onchange={(next) => {
+          form.highlight_photos = next;
+        }}
+      />
     </div>
 
     <div class="qj-field">
       <label class="qj-label" for="notes">{COPY.notesLabel}</label>
       <textarea id="notes" class="qj-textarea" rows="6" maxlength="10000" bind:value={form.notes}></textarea>
+      <PhotoStrip
+        photos={form.notes_photos}
+        label={COPY.photosNotes}
+        disabled={locked}
+        busy={saving}
+        onchange={(next) => {
+          form.notes_photos = next;
+        }}
+      />
     </div>
 
     {#if showGratitude}

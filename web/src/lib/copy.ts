@@ -56,6 +56,30 @@ export const COPY = {
   spentTotal: (amount: string) => `Total: ${amount}`,
   spentBadAmount: 'Type an amount, like 38 or 12.50.',
   spentNoNote: 'no note',
+  // ---- photos (boss card, checkpoints, Highlight / Notes). Stored on this computer only, never committed.
+  photosBoss: 'Photos for this week',
+  photosHighlight: 'Photos for the highlight',
+  photosNotes: 'Photos for the notes',
+  photosCheckpoint: (step: string) => `Photos for “${step}”`,
+  photoAdd: 'Add photo',
+  photoAddTo: (what: string) => `Add a photo: ${what}`,
+  photoAlt: (what: string, n: number, total: number) => `${what}, photo ${n} of ${total}`,
+  photoOpen: (n: number, total: number) => `Open photo ${n} of ${total}`,
+  photoAdding: (n: number, total: number) => (total > 1 ? `Adding photo ${n} of ${total}…` : 'Adding photo…'),
+  photoRemove: (n: number) => `Remove photo ${n}`,
+  photoRemoveAsk: 'Remove this photo?',
+  photoRemoveYes: 'Remove',
+  photoRemoveNo: 'Keep',
+  photoRemoved: 'Photo removed.',
+  photoViewerTitle: (n: number, total: number) => `Photo ${n} of ${total}`,
+  photoPrev: 'Previous photo',
+  photoNext: 'Next photo',
+  photoClose: 'Close',
+  photoLimit: (max: number) => `That's the most this place holds: ${max} photos.`,
+  photoUnreadable: "This photo couldn't be opened here. Try a JPEG or PNG, or a screenshot of it.",
+  photoTooLarge: 'That photo is too large to keep. Try a smaller one.',
+  photoMissing: "This photo isn't on this computer any more.",
+  photoCount: (n: number) => (n === 0 ? 'no photos' : n === 1 ? '1 photo' : `${n} photos`),
   spentCategoryLabel: 'Type of spending',
   spentCategoryOf: (what: string) => `Type of spending for ${what}`,
   spendCategory: {
@@ -413,7 +437,9 @@ export const FIELD_NAMES = {
   highlight: 'Highlight',
   notes: 'Notes',
   gratitude: 'Gratitude',
-  spent: 'Spent'
+  spent: 'Spent',
+  highlight_photos: 'Highlight photos',
+  notes_photos: 'Notes photos'
 } as const;
 
 /** The user's currency (his profile: Hong Kong). Display only; amounts are stored as plain numbers. */

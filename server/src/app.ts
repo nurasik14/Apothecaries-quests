@@ -3,9 +3,12 @@
  */
 import { access, constants, stat } from "node:fs/promises";
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { addDays, isoWithOffset, isValidDate, logicalDate, type Clock } from "./clock";
 import { normalizeHost, type Config } from "./config";
+import { LIMITS } from "./domain";
+import { CONTENT_TYPES, isMediaPath, MediaError, resolveMedia, saveMedia, sniffImage } from "./media";
 import { StoreError } from "./errors";
 import type { Git } from "./git";
 import { createAiMonitor, createClaudeRunner, type AiMonitor, type AiRunner } from "./ai";
@@ -180,12 +183,16 @@ export function createApp(deps: AppDeps) {
         return c.json(errorBody("forbidden_origin", "Cross-origin requests aren't allowed."), 403);
       }
       const ct = c.req.header("content-type") ?? "";
-      if (!/^application\/json\b/i.test(ct)) {
+      // The one non-JSON mutation: a photo upload is multipart (POST /api/media).
+      const upload = c.req.method === "POST" && c.req.path === "/api/media" && /^multipart\/form-data\b/i.test(ct);
+      if (!upload && !/^application\/json\b/i.test(ct)) {
         return c.json(errorBody("unsupported_media_type", "Send JSON (Content-Type: application/json)."), 415);
       }
     }
     await next();
-    c.header("Cache-Control", "no-store");
+    // A served photo keeps its own long private cache header (its path never changes content); everything else is no-store.
+    const photo = c.req.method === "GET" && c.req.path.startsWith("/api/media/") && c.res.status === 200;
+    if (!photo) c.header("Cache-Control", "no-store");
   });
 
   app.onError((err, c) => {
@@ -307,6 +314,55 @@ export function createApp(deps: AppDeps) {
     c.header("ETag", `"${record.etag}"`);
     const reflect = await kb.maybeReflect(date, record);
     return c.json({ day: dayJson(record), reflect_job: reflect.job, reflect_skip: reflect.skip, economy: await shop.economy() });
+  });
+
+  // --- photos (media.ts). Upload first, then attach the returned path with PATCH /api/quests/:id (`photos`,
+  // `checkpoints[].photos`) or PUT /api/days/:date/evening (`highlight_photos`, `notes_photos`). The upload alone
+  // changes no page and makes no commit; `media/` is gitignored in the data repo and never committed.
+  app.post(
+    "/api/media",
+    bodyLimit({
+      maxSize: LIMITS.photoBytes + 64 * 1024, // the file + multipart framing
+      onError: (c) => c.json(errorBody("too_large", "Photos are at most 8 MB."), 413),
+    }),
+    async (c) => {
+      let form: Record<string, unknown>;
+      try {
+        form = await c.req.parseBody();
+      } catch {
+        throw new ApiError(400, "bad_request", "Send the photo as multipart/form-data in the field `file`.");
+      }
+      const file = form.file;
+      if (!(file instanceof File)) throw new ApiError(400, "bad_request", "Send the photo as multipart/form-data in the field `file`.");
+      if (file.size > LIMITS.photoBytes) return c.json(errorBody("too_large", "Photos are at most 8 MB."), 413);
+      const month = logicalDate(clock.now(), config.tz, config.rolloverHour).slice(0, 7);
+      try {
+        const path = await saveMedia(store.dataDir, new Uint8Array(await file.arrayBuffer()), month);
+        return c.json({ path }, 201);
+      } catch (e) {
+        if (e instanceof MediaError) return c.json(errorBody(e.code, e.message), e.status);
+        throw e;
+      }
+    },
+  );
+
+  app.get("/api/media/*", async (c) => {
+    let rel: string;
+    try {
+      rel = decodeURIComponent(c.req.path.slice("/api/".length));
+    } catch {
+      return c.json(errorBody("bad_request", "Not a photo path."), 400);
+    }
+    // Strict: only media/<YYYY-MM>/<id>.<jpg|png|webp>; no `..`, no absolute paths, no symlink out of media/.
+    if (!isMediaPath(rel)) return c.json(errorBody("bad_request", "Not a photo path."), 400);
+    const abs = await resolveMedia(store.dataDir, rel);
+    if (!abs) return c.json(errorBody("not_found", "No such photo."), 404);
+    const file = Bun.file(abs);
+    const type = sniffImage(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
+    if (!type) return c.json(errorBody("not_found", "No such photo."), 404);
+    c.header("Cache-Control", "private, max-age=31536000, immutable");
+    c.header("X-Content-Type-Options", "nosniff");
+    return c.body(file.stream(), 200, { "Content-Type": CONTENT_TYPES[type], "Content-Length": String(file.size) });
   });
 
   app.post("/api/days/:date/reflect", async (c) => {
@@ -455,4 +511,5 @@ export function createApp(deps: AppDeps) {
 export const ECONOMY_EXEMPT_ROUTES: readonly string[] = [
   "POST /api/days/:date/reflect", // queues a reflect job; writes proposals only
   "POST /api/onboarding/draft", // queues a draft job; writes nothing
+  "POST /api/media", // stores a photo file under media/; no page changes until it is attached
 ];

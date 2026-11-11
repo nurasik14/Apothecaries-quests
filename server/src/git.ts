@@ -7,6 +7,9 @@
  */
 import { childEnv } from "./config";
 
+/** The photo folder in the data repo (media.ts). Never committed. */
+const MEDIA_DIR = "media";
+
 export interface GitResult {
   code: number;
   stdout: string;
@@ -165,8 +168,15 @@ export function createGit(opts: GitOptions): Git {
   async function commitNow(reasons: Pending[], files: Set<string>): Promise<void> {
     try {
       await must(["add", "-A"]);
-      const staged = await run(["diff", "--cached", "--name-only", "-z"]);
+      let staged = await run(["diff", "--cached", "--name-only", "-z"]);
       if (staged.code !== 0) throw new Error(`git diff failed: ${staged.stderr.trim()}`);
+      // Photos (`media/`) are never committed. The data repo's .gitignore keeps them out (media.ts ensures the line);
+      // if it was removed by hand, they're unstaged here, so they still never reach a commit.
+      if (staged.stdout.split("\0").some((n) => n === MEDIA_DIR || n.startsWith(`${MEDIA_DIR}/`))) {
+        await must(["rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", MEDIA_DIR]);
+        staged = await run(["diff", "--cached", "--name-only", "-z"]);
+        if (staged.code !== 0) throw new Error(`git diff failed: ${staged.stderr.trim()}`);
+      }
       const names = staged.stdout.split("\0").filter(Boolean);
       if (names.length === 0) {
         state.last_error = null;

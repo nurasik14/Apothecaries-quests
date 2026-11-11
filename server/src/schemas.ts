@@ -34,6 +34,13 @@ export const statusSchema = z.preprocess(alias(STATUS_ALIASES), z.enum(STATUSES)
 export const difficultySchema = z.enum(DIFFICULTIES);
 
 const dateStr = z.string().regex(DATE_STRING, "expected YYYY-MM-DD");
+
+/**
+ * Photo references (`media/<YYYY-MM>/<id>.<ext>` path strings). Lenient on read: anything that isn't a list of
+ * strings reads as "no photos" instead of quarantining the page (a write replaces it). Write routes check the
+ * format, the count (LIMITS.photosPerTarget) and that the file exists (media.ts).
+ */
+const photoList = z.array(z.string()).optional().catch(undefined);
 const nullish = <T extends z.ZodType>(s: T) => s.nullable().optional().transform((v) => v ?? null);
 
 export const generationSchema = z.looseObject({
@@ -108,12 +115,16 @@ export const daySchema = z.looseObject({
   mode: z.enum(MODES).optional(),
   backfilled: z.boolean().optional(),
   prompt_id: z.string().max(40).optional(),
+  /** Photos attached to the Highlight / Notes sections (omitted from the file when empty). */
+  highlight_photos: photoList,
+  notes_photos: photoList,
 });
 export type DayFrontmatter = z.infer<typeof daySchema>;
 
 export const checkpointSchema = z.looseObject({
   text: z.string().min(1).max(160),
   done: z.boolean().optional().default(false),
+  photos: photoList,
 });
 
 export const bossSchema = z.looseObject({
@@ -123,6 +134,8 @@ export const bossSchema = z.looseObject({
   type: z.enum(BOSS_TYPES).optional(),
   checkpoints: z.array(checkpointSchema).max(4).optional(),
   shrunk: z.boolean().optional(),
+  /** Proof / progress photos for the whole weekly quest (omitted from the file when empty). */
+  photos: photoList,
 });
 export type Boss = z.infer<typeof bossSchema>;
 

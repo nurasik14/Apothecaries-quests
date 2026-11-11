@@ -10,6 +10,7 @@
   import { failureCopy } from '../lib/http';
   import BalanceBadge from '../lib/components/BalanceBadge.svelte';
   import OfflineCard from '../lib/components/OfflineCard.svelte';
+  import PhotoStrip from '../lib/components/PhotoStrip.svelte';
   import Quarantine from '../lib/components/Quarantine.svelte';
   import { ledger, setEconomy } from '../lib/economy.svelte';
   import { infoLineFor } from '../lib/ledgerRules';
@@ -217,10 +218,20 @@
     }
   }
 
-  /** Optimistic update of a daily quest or the boss; reverts on failure (designer impl-6). */
+  /**
+   * Optimistic update of a daily quest or the boss; reverts on failure (designer impl-6). `photos` / `checkpointPhotos`
+   * (boss only) send the target's whole photo list; the files were already uploaded by PhotoStrip.
+   */
   async function patch(
     target: QuestJson | BossJson,
-    change: { status?: QuestStatus; feedback?: Feedback; reason?: LetGoReason | null; checkpoint?: [number, boolean] }
+    change: {
+      status?: QuestStatus;
+      feedback?: Feedback;
+      reason?: LetGoReason | null;
+      checkpoint?: [number, boolean];
+      photos?: string[];
+      checkpointPhotos?: [number, string[]];
+    }
   ) {
     if (!data) return;
     const id = target.id;
@@ -235,17 +246,27 @@
       const cp = target2.checkpoints[change.checkpoint[0]];
       if (cp) cp.done = change.checkpoint[1];
     }
+    if (isBoss && change.photos !== undefined) (target2 as BossJson).photos = [...change.photos];
+    if (change.checkpointPhotos && 'checkpoints' in target2 && target2.checkpoints) {
+      const cp = target2.checkpoints[change.checkpointPhotos[0]];
+      if (cp) cp.photos = [...change.checkpointPhotos[1]];
+    }
     if (status === 'done') flashSticker(isBoss ? 'boss_done' : 'quest_done', id, isBoss);
     if (status === 'let_go' && !isBoss) askReason[id] = true;
     if (status !== undefined && status !== 'let_go') askReason[id] = false;
 
     busy[id] = true;
     try {
+      const checkpoints = [
+        ...(change.checkpoint ? [{ index: change.checkpoint[0], done: change.checkpoint[1] }] : []),
+        ...(change.checkpointPhotos ? [{ index: change.checkpointPhotos[0], photos: change.checkpointPhotos[1] }] : [])
+      ];
       const body = {
         ...(status !== undefined ? { status } : {}),
         ...(change.feedback !== undefined ? { feedback: change.feedback } : {}),
         ...(change.reason !== undefined ? { reason: change.reason } : {}),
-        ...(change.checkpoint ? { checkpoints: [{ index: change.checkpoint[0], done: change.checkpoint[1] }] } : {})
+        ...(change.photos !== undefined ? { photos: change.photos } : {}),
+        ...(checkpoints.length ? { checkpoints } : {})
       };
       const before = ledger.economy?.balance ?? null;
       const res = await api.patchQuest(id, body);
@@ -387,6 +408,25 @@
         onfeedback={(f) => boss && patch(boss, { feedback: f })}
         oncheckpoint={(i, done) => boss && patch(boss, { checkpoint: [i, done] })}
       >
+        {#snippet extra()}
+          <!-- Proof / progress photos for the whole week (stored on the laptop only, never committed). -->
+          <PhotoStrip
+            photos={boss?.photos}
+            label={COPY.photosBoss}
+            busy={boss ? (busy[boss.id] ?? false) : false}
+            onchange={(next) => (boss ? patch(boss, { photos: next }) : undefined)}
+          />
+        {/snippet}
+        {#snippet checkpointExtra(i: number)}
+          <!-- Optional, unobtrusive: a small camera button; thumbnails only once the checkpoint has photos. -->
+          <PhotoStrip
+            compact
+            photos={boss?.checkpoints?.[i]?.photos}
+            label={COPY.photosCheckpoint(boss?.checkpoints?.[i]?.text ?? '')}
+            busy={boss ? (busy[boss.id] ?? false) : false}
+            onchange={(next) => (boss ? patch(boss, { checkpointPhotos: [i, next] }) : undefined)}
+          />
+        {/snippet}
         {#snippet note()}
           {#if day?.energy === 1 && boss?.status === 'open'}<p class="paused">{COPY.bossPaused}</p>{/if}
           {#if cpTotal > 0}<p>{COPY.bossProgress(cpDone, cpTotal)}</p>{/if}

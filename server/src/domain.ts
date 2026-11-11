@@ -181,6 +181,13 @@ export const LIMITS = {
   spentEntries: 50,
   spentNote: 80,
   spentAmount: 10_000_000,
+  /**
+   * Photos per target (the boss, each boss checkpoint, a day's Highlight, a day's Notes). Mirrored by
+   * MAX_PHOTOS in web/src/lib/photos.ts (the web imports types only); media.test.ts checks the two match.
+   */
+  photosPerTarget: 6,
+  /** Largest accepted upload (the web resizes to ≤1600 px JPEG first, so real uploads are far smaller). */
+  photoBytes: 8 * 1024 * 1024,
 } as const;
 
 /**

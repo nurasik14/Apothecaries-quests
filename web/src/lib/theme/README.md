@@ -111,6 +111,8 @@ One prescription entry. Left margin column: the entry number in brush (第一方
 | `showCoins` | `boolean` | `true` | |
 | `headingLevel` | `2 \| 3` | `3` | |
 | `note` | `Snippet` | | Micro-copy under the note/checkpoints |
+| `extra` | `Snippet` | | Content between the why/checkpoints and `note` (the boss card's photo strip) |
+| `checkpointExtra` | `Snippet<[number]>` | | Per-checkpoint content after the label, wraps under it when wide (the boss card's camera button / thumbnails) |
 | `onstatus` / `onfeedback` / `onreroll` / `oncheckpoint` | callbacks | | |
 
 ### `LanternScale`

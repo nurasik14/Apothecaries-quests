@@ -82,12 +82,14 @@ export async function send<T>(
   }, ms);
   let res: Response;
   let text: string;
+  // A FormData body (photo upload) goes as multipart; the browser sets its Content-Type with the boundary.
+  const form = typeof FormData !== 'undefined' && body instanceof FormData;
   try {
     try {
       res = await doFetch(path, {
         method,
-        headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...headers },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        headers: { Accept: 'application/json', ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}), ...headers },
+        body: form ? body : body !== undefined ? JSON.stringify(body) : undefined,
         cache: 'no-store',
         signal: ctrl.signal
       });

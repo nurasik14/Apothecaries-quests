@@ -27,6 +27,7 @@ Nurasyl wants a personal daily quest system. Each day it gives 3 AI-generated qu
   rewards.yaml        # shop items with coin prices and cooldowns
   quests.yaml         # fallback pool for when Claude isn't available
   ledger.md           # coin earn/spend log (or derived from the day files)
+  media/2026-11/<id>.jpg  # photos; GITIGNORED, never committed (see Photos)
 ```
 Libraries: `gray-matter` + `yaml` for frontmatter, `zod` to validate the AI's JSON, `simple-git` or `Bun.spawn git`.
 
@@ -41,6 +42,19 @@ Libraries: `gray-matter` + `yaml` for frontmatter, `zod` to validate the AI's JS
 ## Economy (`server/economy.ts`)
 - Difficulty sets the coins: easy 10, medium 20, hard 35, boss 100. Each 7-day streak gives a bonus.
 - Shop: you buy an item, which deducts coins and logs the purchase. Starting rewards: treat 30, café meal 80, manga 150 (all editable in `rewards.yaml`).
+
+## Photos (`server/media.ts`, `web/src/lib/components/PhotoStrip.svelte`)
+Optional photos on the weekly boss (the whole quest and each checkpoint) and on a day's Highlight and Notes. Max 6 per target (`LIMITS.photosPerTarget`).
+- **Storage:** `DATA_DIR/media/<YYYY-MM>/<random id>.<jpg|png|webp>` (crypto-random id, month = logical date). **Never committed, not even to the local data repo:** `media/` is in the data repo's `.gitignore` (init writes it; `ensureMediaIgnored` appends it idempotently before the first upload for repos initialised earlier), and `git.ts` unstages anything under `media/` if the ignore line was removed by hand. Commits only ever carry the path strings in the pages.
+- **References** are path strings in the YAML front matter, omitted when empty:
+  - week page: `boss.photos: [...]`, `boss.checkpoints[i].photos: [...]`
+  - day page: `highlight_photos: [...]`, `notes_photos: [...]`
+  Read side is lenient (a non-list reads as "no photos"); writes accept only paths matching `media/<YYYY-MM>/<id>.<ext>` that exist on disk (paths already on the page are kept even if the file was removed by hand).
+- **Endpoints:** `POST /api/media` (multipart, field `file`; magic bytes JPEG/PNG/WebP only; 8 MB cap → 413; returns `{path}`; changes no page) · `GET /api/media/<YYYY-MM>/<id>.<ext>` (strict regex + realpath inside `media/`; `Cache-Control: private, max-age=31536000, immutable`; 400/404 otherwise). Attach with `PATCH /api/quests/:id {photos}` / `{checkpoints:[{index, photos}]}` (weekly quest only) and `PUT /api/days/:date/evening {highlight_photos, notes_photos}`; each sends the target's whole list (`[]` removes it). Commit messages: `boss <week> photos`, `evening <date>`.
+- **Client:** every photo is resized on the device (longest side 1600 px, JPEG 0.82, EXIF orientation applied) and re-encoded through a canvas, which strips EXIF/GPS. A file the browser can't decode (e.g. HEIC) is never uploaded raw; the user gets a friendly message. The service worker never caches `/api/*`, photos included.
+- **Orphans are kept:** removing a photo only drops the reference. The file is not in git, so the copy on disk is the only one; a git revert or hand edit could bring the reference back. Abandoned uploads are orphans too. Clean `media/` by hand if needed.
+- A boss with photos counts as touched: the AI boss job never replaces it.
+- Photos and their paths never go into AI prompts (prompts take explicit text fields only; `media.test.ts` asserts it).
 
 ## Pages
 Today (energy check-in, 3 quests + boss, done/fail/reroll, 👍/👎 per quest) · Evening (rating 1–10, mood tags, highlight, notes, gratitude, then insight suggestions) · Shop (balance, items, wishlist) · History (calendar heatmap of satisfaction, average satisfaction per category, streak, "this day last month") · Profile (edit profile.md and insights.md)

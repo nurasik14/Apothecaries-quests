@@ -31,6 +31,8 @@ export const DATA_GITIGNORE = `.obsidian/workspace*
 *.tmp-*
 .trash/
 .cache/
+# Photos stay on this machine only (never committed).
+media/
 `;
 
 export const DATA_DIRS = ["days", "weeks", "kb", "kb/proposals"] as const;

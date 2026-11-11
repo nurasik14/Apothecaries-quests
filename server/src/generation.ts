@@ -12,6 +12,7 @@ import { BOSS_TYPE_CATEGORY, LIMITS, RECENT_TITLE_DAYS, TARIFF, type Difficulty,
 import { StoreError } from "./errors";
 import { estimateMinutes, hashString, selectBoss, selectDaily, selectReroll, type HistoryDay } from "./fallback";
 import type { Git } from "./git";
+import { bossHasPhotos } from "./media";
 import {
   buildBossPrompt,
   buildDailyPrompt,
@@ -499,10 +500,15 @@ export function createGenerator(deps: GenerationDeps) {
         week,
         (d) => {
           const cur = d.boss;
-          // Only an untouched placeholder may be replaced (architect-AC15, psychologist-AC18).
+          // Only an untouched placeholder may be replaced (architect-AC15, psychologist-AC18). Photos count as a
+          // touch: swapping the boss would silently drop them.
           if (cur) {
             const touched =
-              cur.source !== "pool" || cur.status !== "open" || cur.feedback !== null || (cur.checkpoints ?? []).some((c) => c.done);
+              cur.source !== "pool" ||
+              cur.status !== "open" ||
+              cur.feedback !== null ||
+              (cur.checkpoints ?? []).some((c) => c.done) ||
+              bossHasPhotos(cur);
             if (touched) return;
           }
           d.boss = boss;

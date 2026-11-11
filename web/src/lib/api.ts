@@ -19,6 +19,7 @@ import type {
   WishlistResponse,
   EveningResponse,
   Job,
+  MediaUploadResponse,
   QuestPatchBody,
   QuestPatchResponse,
   RerollResponse,
@@ -33,6 +34,9 @@ export { ApiError, NetworkError, TimeoutError, type Reply };
 function request<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Reply<T>> {
   return send<T>(method, path, body, headers, { onReach: (ok) => (net.offline = !ok) });
 }
+
+/** A photo upload gets longer than other writes: a phone on mobile data over Tailscale can be slow. */
+export const UPLOAD_TIMEOUT_MS = 60_000;
 
 export const api = {
   // ---- M5: ledger + Palace Market
@@ -58,6 +62,12 @@ export const api = {
       'If-Match': etag === '*' ? '*' : `"${etag}"`
     }),
   spentSuggestions: () => request<{ suggestions: SpentSuggestion[] }>('GET', '/api/spent/suggestions'),
+  /** Store one (already resized, EXIF-free) photo; attach the returned path with patchQuest / saveEvening. */
+  uploadPhoto: (photo: Blob) => {
+    const fd = new FormData();
+    fd.append('file', photo, 'photo.jpg');
+    return send<MediaUploadResponse>('POST', '/api/media', fd, {}, { timeoutMs: UPLOAD_TIMEOUT_MS, onReach: (ok) => (net.offline = !ok) });
+  },
   health: () =>
     request<{ date: string; tz: string; rollover_hour: number }>('GET', '/api/health'),
 
